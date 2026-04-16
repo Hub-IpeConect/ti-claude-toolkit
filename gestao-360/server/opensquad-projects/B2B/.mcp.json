@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--profile",
+        "./_opensquad/_browser_profile"
+      ]
+    }
+  }
+}
