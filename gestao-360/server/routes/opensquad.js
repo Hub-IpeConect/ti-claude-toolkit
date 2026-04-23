@@ -2,6 +2,7 @@ import express from 'express'
 import { spawn, execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
+import os from 'os'
 import { fileURLToPath } from 'url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -33,15 +34,56 @@ function sanitizeName(name) {
 // Tenta extrair um objeto JSON valido de uma string (tolerante a markdown/texto extra)
 function tryExtractJson(text) {
   if (!text) return null
-  // 1. Bloco ```json ... ```
-  const fenced = text.match(/```json\s*([\s\S]*?)```/)
-  if (fenced) { try { return JSON.parse(fenced[1].trim()) } catch {} }
-  // 2. Primeiro { ... } que contenha "segment" ou "description"
-  const objMatch = text.match(/\{[^{}]*(?:"segment"|"description")[^{}]*\}/)
-  if (objMatch) { try { return JSON.parse(objMatch[0]) } catch {} }
-  // 3. { ... } generico (mais amplo, ultima tentativa)
-  const generic = text.match(/\{[\s\S]*?\}/)
-  if (generic) { try { const p = JSON.parse(generic[0]); if (p && typeof p === 'object') return p } catch {} }
+
+  // 1. Bloco ```json ... ``` (greedy para pegar o maior bloco)
+  const fenced = text.match(/```json\s*([\s\S]*?)```/i)
+  if (fenced) {
+    try { return JSON.parse(fenced[1].trim()) } catch {}
+  }
+
+  // 2. Bloco ``` generico (sem tipo explicito)
+  const fencedGeneric = text.match(/```\s*(\{[\s\S]*?\})\s*```/)
+  if (fencedGeneric) {
+    try { return JSON.parse(fencedGeneric[1].trim()) } catch {}
+  }
+
+  // 3. Encontra o maior bloco { ... } que contenha as chaves esperadas
+  //    Usa match greedy e tenta parsear todas as ocorrencias de maior para menor
+  const allBlocks = []
+  let depth = 0, start = -1
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{') {
+      if (depth === 0) start = i
+      depth++
+    } else if (text[i] === '}') {
+      depth--
+      if (depth === 0 && start !== -1) {
+        allBlocks.push(text.slice(start, i + 1))
+        start = -1
+      }
+    }
+  }
+  // Tenta do maior para o menor bloco
+  allBlocks.sort((a, b) => b.length - a.length)
+  for (const block of allBlocks) {
+    try {
+      const parsed = JSON.parse(block)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        // Valida que tem pelo menos uma das chaves esperadas
+        if (parsed.segment || parsed.description || parsed.audience || parsed.tone) {
+          return parsed
+        }
+      }
+    } catch {}
+  }
+  // Ultima tentativa: qualquer objeto valido
+  for (const block of allBlocks) {
+    try {
+      const parsed = JSON.parse(block)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed
+    } catch {}
+  }
+
   return null
 }
 
@@ -368,116 +410,6 @@ router.delete('/project/:name', (req, res) => {
 })
 
 /**
- * POST /api/opensquad/research-profile
- * Body: { projectName, entityType, name, source }
- *
- * Usa a skill sherlock do OpenSquad para pesquisar automaticamente
- * o perfil com base no nome + site/perfil social fornecido.
- * Retorna um JSON com os campos preenchidos (description, audience,
- * segment, tone, objectives, differentials).
- */
-router.post('/research-profile', (req, res) => {
-  const { projectName, entityType, name, source, timeoutMs = 300000 } = req.body || {}
-  const safeName = sanitizeName(projectName)
-  const projectPath = path.join(PROJECTS_DIR, safeName)
-
-  if (!safeName || !fs.existsSync(projectPath)) {
-    return res.status(404).json({ error: 'Squad nao encontrado.' })
-  }
-  if (!name) {
-    return res.status(400).json({ error: 'Campo name obrigatorio.' })
-  }
-
-  const typeLabel = entityType === 'pj' ? 'empresa (PJ)' : 'pessoa fisica (PF)'
-  const sourceLine = source ? `Site/perfil: ${source}` : '(sem site/perfil informado — pesquise publicamente)'
-
-  // Prompt que solicita o sherlock + retorno em JSON estruturado
-  const prompt = [
-    'Use a skill sherlock do OpenSquad para pesquisar o perfil abaixo e extrair informacoes de marketing.',
-    '',
-    `Tipo: ${typeLabel}`,
-    `Nome: ${name}`,
-    sourceLine,
-    '',
-    'Apos a pesquisa, retorne APENAS um objeto JSON valido (sem markdown, sem texto antes/depois) com as chaves:',
-    '{',
-    '  "segment": "segmento/nicho de atuacao",',
-    '  "description": "descricao do que faz em 2-3 frases",',
-    '  "audience": "publico-alvo detalhado",',
-    '  "tone": "tom de voz recomendado (uma palavra: Profissional, Amigavel, Consultivo, Divertido, Inspirador, Tecnico, Educativo)",',
-    '  "objectives": "objetivos de marketing recomendados",',
-    '  "differentials": "diferenciais identificados",',
-    '  "extra": "outras informacoes relevantes"',
-    '}',
-    '',
-    'Responda SOMENTE com o JSON. Nao inclua explicacoes, crases, markdown ou qualquer texto fora do JSON.',
-  ].join('\n')
-
-  const isWindows = process.platform === 'win32'
-  const escapedPrompt = prompt.replace(/"/g, '\\"')
-  const cmd = isWindows
-    ? `chcp 65001 >nul && claude --print --output-format text "${escapedPrompt}"`
-    : `claude --print --output-format text "${escapedPrompt}"`
-
-  const startedAt = Date.now()
-  let stdout = ''
-  let stderr = ''
-
-  const child = spawn(cmd, [], {
-    cwd: projectPath,
-    shell: true,
-    env: { ...process.env, FORCE_COLOR: '0', PYTHONIOENCODING: 'utf-8' },
-  })
-
-  const timer = setTimeout(() => { try { child.kill() } catch {} }, timeoutMs)
-
-  child.stdout.on('data', (chunk) => { stdout += chunk.toString('utf8') })
-  child.stderr.on('data', (chunk) => { stderr += chunk.toString('utf8') })
-
-  child.on('error', (err) => {
-    clearTimeout(timer)
-    res.status(500).json({ error: `Falha ao pesquisar: ${err.message}` })
-  })
-
-  child.on('close', (code) => {
-    clearTimeout(timer)
-    const durationMs = Date.now() - startedAt
-    const cleanOutput = stripAnsi(stdout).trim()
-
-    if (code !== 0) {
-      return res.status(500).json({
-        error: stripAnsi(stderr).trim() || `claude saiu com codigo ${code}`,
-        rawOutput: cleanOutput,
-        exitCode: code,
-      })
-    }
-
-    // Tenta extrair JSON da resposta (tolerante a markdown/code fences)
-    let profile = null
-    try {
-      // Remove eventuais code fences
-      let cleaned = cleanOutput
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/```\s*$/i, '')
-        .trim()
-      // Se houver texto antes/depois, tenta pegar o primeiro { ... }
-      const match = cleaned.match(/\{[\s\S]*\}/)
-      if (match) cleaned = match[0]
-      profile = JSON.parse(cleaned)
-    } catch (err) {
-      return res.status(500).json({
-        error: 'Nao foi possivel interpretar a resposta da pesquisa como JSON.',
-        rawOutput: cleanOutput,
-        parseError: err.message,
-      })
-    }
-
-    res.json({ ok: true, profile, durationMs })
-  })
-})
-
-/**
  * POST /api/opensquad/setup-profile
  * Body: { projectName, profile }
  *
@@ -641,6 +573,132 @@ router.post('/action', (req, res) => {
 })
 
 /**
+ * POST /api/opensquad/research-profile
+ * Body: { projectName, entityType, name, source, proposito }
+ *
+ * Versao NAO-streaming: espera o Claude terminar e retorna JSON.
+ * Evita problemas de SSE com proxy do Vite no Windows.
+ */
+router.post('/research-profile', (req, res) => {
+  const { projectName, entityType, name, source, proposito, timeoutMs = 300000 } = req.body || {}
+  const safeName = sanitizeName(projectName)
+  const projectPath = path.join(PROJECTS_DIR, safeName)
+
+  if (!safeName || !fs.existsSync(projectPath)) {
+    return res.status(404).json({ error: 'Squad nao encontrado.' })
+  }
+  if (!name) {
+    return res.status(400).json({ error: 'Campo name obrigatorio.' })
+  }
+
+  const typeLabel = entityType === 'pj' ? 'empresa (PJ)' : 'pessoa fisica (PF)'
+  const sourceLine = source ? 'Site/perfil para consulta: ' + source : '(sem site/perfil informado)'
+  const propositoLine = proposito ? 'Proposito do squad de marketing: ' + proposito : ''
+
+  const prompt = [
+    'Voce e um especialista em marketing digital.',
+    'Analise o perfil abaixo e extraia informacoes de marketing.',
+    'Tipo: ' + typeLabel + '.',
+    'Nome/Empresa: ' + name + '.',
+    sourceLine + '.',
+    propositoLine ? propositoLine + '.' : '',
+    'Com base no que voce sabe sobre esta empresa/pessoa e no site informado, retorne SOMENTE um objeto JSON valido.',
+    'Nao use marcadores de codigo, nao use crases, nao escreva nada antes ou depois do JSON.',
+    'Seja especifico. Se nao souber um campo, use seu conhecimento sobre o segmento para inferir.',
+    'Formato exato (JSON): {"segment":"(segmento ou nicho de atuacao)","description":"(descricao do que a empresa faz em 2 a 3 frases)","audience":"(publico-alvo: quem sao, faixa etaria, necessidades)","tone":"(um de: Profissional, Amigavel, Consultivo, Divertido, Inspirador, Tecnico, Educativo)","objectives":"(objetivos de marketing recomendados)","differentials":"(diferenciais competitivos identificados)","extra":"(outras informacoes relevantes)"}',
+  ].filter(Boolean).join(' ')
+
+  const isWindows = process.platform === 'win32'
+  const serverDir = path.resolve(__dirname, '..')
+  const escaped = prompt.replace(/"/g, '\\"')
+  const shellCmd = isWindows
+    ? 'chcp 65001 >nul && claude --print --output-format text "' + escaped + '"'
+    : 'claude --print --output-format text "' + escaped + '"'
+
+  console.log('[sherlock:' + safeName + '] Prompt (' + prompt.length + ' chars) — modo sincrono')
+
+  let stdout = ''
+  let stderr = ''
+
+  const child = spawn(shellCmd, [], {
+    cwd: serverDir,
+    shell: true,
+    env: { ...process.env, FORCE_COLOR: '0', PYTHONIOENCODING: 'utf-8' },
+  })
+
+  console.log('[sherlock:' + safeName + '] child.pid=' + child.pid)
+
+  const timer = setTimeout(() => {
+    try { child.kill() } catch (e) {}
+    res.status(504).json({ error: 'Timeout: Sherlock demorou mais que 5 minutos.' })
+  }, timeoutMs)
+
+  child.stdout.on('data', (d) => { stdout += d.toString('utf8') })
+  child.stderr.on('data', (d) => { stderr += d.toString('utf8') })
+
+  child.on('error', (err) => {
+    clearTimeout(timer)
+    console.error('[sherlock:' + safeName + '] erro ao executar:', err.message)
+    res.status(500).json({ error: 'Falha ao executar claude: ' + err.message })
+  })
+
+  child.on('close', (code, signal) => {
+    clearTimeout(timer)
+    const fullOutput = stripAnsi(stdout)
+    console.log('[sherlock:' + safeName + '] finalizado (code=' + code + ', signal=' + signal + ', output=' + fullOutput.length + ' chars)')
+
+    let profile = tryExtractJson(fullOutput)
+
+    if (profile) {
+      console.log('[sherlock:' + safeName + '] JSON extraido com sucesso')
+      return res.json({ ok: true, profile, raw: fullOutput.slice(0, 6000) })
+    }
+
+    if (!fullOutput.trim()) {
+      console.log('[sherlock:' + safeName + '] Output vazio')
+      return res.json({ ok: true, profile: null, raw: '' })
+    }
+
+    // Tem output mas nao e JSON — tenta segunda chamada para estruturar
+    console.log('[sherlock:' + safeName + '] Tentando estruturar output em JSON...')
+
+    const structPrompt = [
+      'Converta as informacoes abaixo sobre ' + name + ' em um objeto JSON valido.',
+      'Retorne SOMENTE o JSON, sem texto antes ou depois, sem marcadores de codigo.',
+      "Formato: {" + '"segment":"...","description":"...","audience":"...","tone":"Profissional","objectives":"...","differentials":"...","extra":"..."' + "}.",
+      'Informacoes coletadas:',
+      fullOutput.slice(0, 2000).replace(/\n/g, ' ').replace(/"/g, "'"),
+    ].join(' ')
+
+    const esc2 = structPrompt.replace(/"/g, '\\"')
+    const cmd2 = isWindows
+      ? 'chcp 65001 >nul && claude --print --output-format text "' + esc2 + '"'
+      : 'claude --print --output-format text "' + esc2 + '"'
+
+    let out2 = ''
+    const child2 = spawn(cmd2, [], {
+      cwd: serverDir,
+      shell: true,
+      env: { ...process.env, FORCE_COLOR: '0', PYTHONIOENCODING: 'utf-8' },
+    })
+
+    const t2 = setTimeout(() => { try { child2.kill() } catch (e) {} }, 60000)
+
+    child2.stdout.on('data', (d) => { out2 += stripAnsi(d.toString('utf8')) })
+    child2.on('close', () => {
+      clearTimeout(t2)
+      const profile2 = tryExtractJson(out2)
+      console.log('[sherlock:' + safeName + '] 2a tentativa:', profile2 ? 'OK' : 'FALHOU')
+      res.json({ ok: true, profile: profile2, raw: fullOutput.slice(0, 6000) })
+    })
+    child2.on('error', () => {
+      clearTimeout(t2)
+      res.json({ ok: true, profile: null, raw: fullOutput.slice(0, 6000) })
+    })
+  })
+})
+
+/**
  * POST /api/opensquad/research-profile-stream
  * Body: { projectName, entityType, name, source, proposito }
  *
@@ -674,46 +732,55 @@ router.post('/research-profile-stream', (req, res) => {
   }
 
   const typeLabel = entityType === 'pj' ? 'empresa (PJ)' : 'pessoa fisica (PF)'
-  const sourceLine = source ? `Site/perfil: ${source}` : '(sem site/perfil — pesquise publicamente)'
-  const propositoLine = proposito ? `Proposito do squad: ${proposito}` : ''
+  const sourceLine = source ? `Site/perfil para consulta: ${source}` : '(sem site/perfil informado)'
+  const propositoLine = proposito ? `Proposito do squad de marketing: ${proposito}` : ''
 
+  // Prompt direto — achatado em uma unica linha para funcionar como argumento
+  // no Windows cmd.exe (mesma abordagem da rota /init que funciona).
+  // IMPORTANTE: nao usar crases (backticks) nem newlines no prompt.
   const prompt = [
-    'Use a skill sherlock do OpenSquad para pesquisar o perfil abaixo.',
-    'Mostre cada etapa da pesquisa (o que esta buscando, o que encontrou).',
-    propositoLine,
-    `Tipo: ${typeLabel}`,
-    `Nome: ${name}`,
-    sourceLine,
-    '',
-    'Ao FINAL da pesquisa, apos mostrar os resultados, inclua um bloco JSON com esta estrutura exata:',
-    '```json',
-    '{',
-    '  "segment": "...",',
-    '  "description": "...",',
-    '  "audience": "...",',
-    '  "tone": "Profissional|Amigavel|Consultivo|Divertido|Inspirador|Tecnico|Educativo",',
-    '  "objectives": "...",',
-    '  "differentials": "...",',
-    '  "extra": "..."',
-    '}',
-    '```',
-  ].filter(Boolean).join('\n')
+    `Voce e um especialista em marketing digital.`,
+    `Analise o perfil abaixo e extraia informacoes de marketing.`,
+    `Tipo: ${typeLabel}.`,
+    `Nome/Empresa: ${name}.`,
+    sourceLine + '.',
+    propositoLine ? propositoLine + '.' : '',
+    'Com base no que voce sabe sobre esta empresa/pessoa e no site informado, retorne SOMENTE um objeto JSON valido.',
+    'Nao use marcadores de codigo, nao use crases, nao escreva nada antes ou depois do JSON.',
+    'Seja especifico. Se nao souber um campo, use seu conhecimento sobre o segmento para inferir.',
+    'Formato exato (JSON): {"segment":"(segmento ou nicho de atuacao)","description":"(descricao do que a empresa faz em 2 a 3 frases)","audience":"(publico-alvo: quem sao, faixa etaria, necessidades)","tone":"(um de: Profissional, Amigavel, Consultivo, Divertido, Inspirador, Tecnico, Educativo)","objectives":"(objetivos de marketing recomendados)","differentials":"(diferenciais competitivos identificados)","extra":"(outras informacoes relevantes)"}',
+  ].filter(Boolean).join(' ')
 
   const isWindows = process.platform === 'win32'
-  const escaped = prompt.replace(/"/g, '\\"')
-  const cmd = isWindows
-    ? `chcp 65001 >nul && claude --print --output-format text "${escaped}"`
-    : `claude --print --output-format text "${escaped}"`
+  // Usa o diretorio do servidor (ja confiavel para o Claude) em vez do projeto novo
+  // para evitar prompts interativos de permissao que travam a execucao
+  const serverDir = path.resolve(__dirname, '..')
 
   let fullOutput = ''
 
-  const child = spawn(cmd, [], {
-    cwd: projectPath,
+  // Escapa aspas duplas e monta o comando como argumento direto (igual ao /init).
+  // Nao usar stdin pipe, redirecionamento < ou arquivo temp — nenhum funciona
+  // com o wrapper .cmd do Claude no Windows (SIGTERM / output vazio).
+  const escaped = prompt.replace(/"/g, '\\"')
+  const shellCmd = isWindows
+    ? `chcp 65001 >nul && claude --print --output-format text "${escaped}"`
+    : `claude --print --output-format text "${escaped}"`
+
+  console.log(`[sherlock:${safeName}] Prompt (${prompt.length} chars)`)
+  console.log(`[sherlock:${safeName}] Executando claude --print como argumento direto...`)
+
+  // SEM stdio customizado — usa default ['pipe','pipe','pipe'] igual ao /init que funciona.
+  // stdin:'ignore' pode causar SIGTERM no Claude CLI.
+  const child = spawn(shellCmd, [], {
+    cwd: serverDir,
     shell: true,
     env: { ...process.env, FORCE_COLOR: '0', PYTHONIOENCODING: 'utf-8' },
   })
 
+  console.log(`[sherlock:${safeName}] child.pid=${child.pid}`)
+
   const timer = setTimeout(() => {
+    console.log(`[sherlock:${safeName}] TIMEOUT — matando processo`)
     try { child.kill() } catch {}
     send({ type: 'error', message: 'Timeout: Sherlock demorou mais que 5 minutos.' })
     res.end()
@@ -732,67 +799,95 @@ router.post('/research-profile-stream', (req, res) => {
 
   child.stderr.on('data', (chunk) => {
     const text = stripAnsi(chunk.toString('utf8'))
-    // Nao envia stderr pro usuario — so loga no servidor
-    process.stderr.write(`[sherlock:${safeName}] ${text}`)
+    console.error(`[sherlock:${safeName}] stderr: ${text}`)
   })
 
   child.on('error', (err) => {
     clearTimeout(timer); clearInterval(heartbeat)
+    // (sem arquivo temp para limpar)
     send({ type: 'error', message: `Falha ao executar claude: ${err.message}` })
     res.end()
   })
 
-  child.on('close', (code) => {
+  child.on('close', (code, signal) => {
     clearTimeout(timer); clearInterval(heartbeat)
+    // (sem arquivo temp para limpar)
+
+    console.log(`[sherlock:${safeName}] finalizado (code=${code}, signal=${signal}, output=${fullOutput.length} chars)`)
 
     // Tenta extrair o JSON do final da saida
     let profile = tryExtractJson(fullOutput)
 
     if (profile) {
-      send({ type: 'done', profile })
+      console.log(`[sherlock:${safeName}] JSON extraido na 1a tentativa:`, JSON.stringify(profile).slice(0, 200))
+      send({ type: 'done', profile, raw: fullOutput.slice(0, 6000) })
       res.end()
       return
     }
 
-    // JSON nao encontrado — faz segunda chamada rapida so para estruturar o output
+    console.log(`[sherlock:${safeName}] JSON nao encontrado na 1a tentativa — output: "${fullOutput.slice(0, 200)}"`)
+
+    // Se o output esta vazio, nao adianta tentar estruturar — envia erro direto
+    if (!fullOutput.trim()) {
+      console.log(`[sherlock:${safeName}] Output vazio — abortando 2a tentativa`)
+      send({ type: 'done', profile: null, raw: '' })
+      res.end()
+      return
+    }
+
+    // JSON nao encontrado mas temos conteudo — faz segunda chamada para estruturar
     send({ type: 'chunk', text: '\n\n🔄 Estruturando dados encontrados...\n' })
 
-    const structurePrompt = `Com base nas informacoes abaixo sobre "${name}", retorne SOMENTE um JSON valido (sem markdown, sem texto extra):
-{"segment":"...","description":"...","audience":"...","tone":"Profissional","objectives":"...","differentials":"...","extra":"..."}
+    // Segunda chamada — tambem como argumento direto, em uma linha
+    const structurePrompt = [
+      `Converta as informacoes abaixo sobre ${name} em um objeto JSON valido.`,
+      'Retorne SOMENTE o JSON, sem texto antes ou depois, sem marcadores de codigo.',
+      'Formato: {"segment":"...","description":"...","audience":"...","tone":"Profissional","objectives":"...","differentials":"...","extra":"..."}.',
+      'Informacoes coletadas:',
+      fullOutput.slice(0, 2000).replace(/\n/g, ' ').replace(/"/g, "'"),
+    ].join(' ')
 
-Informacoes coletadas:
-${fullOutput.slice(0, 3000)}`
-
-    const escapedSP = structurePrompt.replace(/"/g, '\\"')
-    const cmd2 = isWindows
-      ? `chcp 65001 >nul && claude --print --output-format text "${escapedSP}"`
-      : `claude --print --output-format text "${escapedSP}"`
+    const escaped2 = structurePrompt.replace(/"/g, '\\"')
+    const shellCmd2 = isWindows
+      ? `chcp 65001 >nul && claude --print --output-format text "${escaped2}"`
+      : `claude --print --output-format text "${escaped2}"`
 
     let out2 = ''
-    const child2 = spawn(cmd2, [], {
-      cwd: projectPath,
+    const child2 = spawn(shellCmd2, [], {
+      cwd: serverDir,
       shell: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, FORCE_COLOR: '0', PYTHONIOENCODING: 'utf-8' },
     })
+
     const t2 = setTimeout(() => { try { child2.kill() } catch {} }, 60000)
 
     child2.stdout.on('data', (d) => { out2 += stripAnsi(d.toString('utf8')) })
     child2.on('close', () => {
       clearTimeout(t2)
       const profile2 = tryExtractJson(out2)
-      send({ type: 'done', profile: profile2, raw: fullOutput.slice(-500) })
+      console.log(`[sherlock:${safeName}] 2a tentativa JSON:`, profile2 ? JSON.stringify(profile2).slice(0, 200) : 'FALHOU — out2=' + out2.slice(0, 300))
+      send({ type: 'done', profile: profile2, raw: fullOutput.slice(0, 6000) })
       res.end()
     })
     child2.on('error', () => {
       clearTimeout(t2)
-      send({ type: 'done', profile: null, raw: fullOutput.slice(-500) })
+      console.log(`[sherlock:${safeName}] Erro na 2a tentativa`)
+      send({ type: 'done', profile: null, raw: fullOutput.slice(0, 6000) })
       res.end()
     })
   })
 
+
+  // NAO matar o child quando req.on('close') dispara.
+  // O proxy do Vite fecha a conexao SSE prematuramente, mas o processo
+  // Claude deve continuar rodando. O child.on('close') ainda sera chamado
+  // quando o processo terminar naturalmente, e os dados serao processados.
+  // O send() usa try/catch entao nao quebra se a conexao estiver fechada.
   req.on('close', () => {
+    console.log(`[sherlock:${safeName}] req.on('close') disparou (conexao fechada pelo proxy) — child continua rodando`)
     clearTimeout(timer); clearInterval(heartbeat)
-    try { child.kill() } catch {}
+    // NÃO faz child.kill() aqui — deixa o processo terminar
   })
 })
 

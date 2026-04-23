@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Header from '@components/Header'
 import {
@@ -35,20 +35,29 @@ const emptyLdapConfig = {
 
 export default function LdapConfig() {
   const navigate = useNavigate()
-  const [configs, setConfigs] = useState(() => {
-    const saved = localStorage.getItem('gestao360_ldap_configs')
-    if (saved) {
-      try { return JSON.parse(saved) } catch (e) { /* ignora */ }
-    }
-    return [
-      { id: 1, ...emptyLdapConfig, nome: 'IPECONECT', servidor: '10.0.1.4', baseDn: 'dc=grupoprestacon,dc=local', rootDn: 'grupo-prestacon\\Administrador' },
-    ]
-  })
+  const [configs, setConfigs] = useState([
+    { id: 1, ...emptyLdapConfig, nome: 'IPECONECT', servidor: '10.0.1.4', baseDn: 'dc=grupoprestacon,dc=local', rootDn: 'grupo-prestacon\\Administrador' },
+  ])
+  const [loadingConfigs, setLoadingConfigs] = useState(true)
   const [activeConfigId, setActiveConfigId] = useState(1)
   const [testStatus, setTestStatus] = useState(null) // null | 'testing' | 'success' | 'error'
   const [testMessage, setTestMessage] = useState('')
   const [testDetails, setTestDetails] = useState(null)
   const [saved, setSaved] = useState(false)
+
+  // Carrega configuracao LDAP do servidor ao montar
+  useEffect(() => {
+    fetch('/api/ldap/config')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.configs?.length > 0) {
+          setConfigs(data.configs)
+          setActiveConfigId(data.configs[0].id)
+        }
+      })
+      .catch(() => { /* usa o estado inicial como fallback */ })
+      .finally(() => setLoadingConfigs(false))
+  }, [])
 
   const activeConfig = configs.find(c => c.id === activeConfigId)
 
@@ -61,11 +70,20 @@ export default function LdapConfig() {
     setSaved(false)
   }
 
-  const handleSave = () => {
-    // Persiste as configs LDAP no localStorage para uso na autenticacao
-    localStorage.setItem('gestao360_ldap_configs', JSON.stringify(configs))
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+  const handleSave = async () => {
+    try {
+      const response = await fetch('/api/ldap/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ configs }),
+      })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.message)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (err) {
+      alert(`Erro ao salvar: ${err.message}`)
+    }
   }
 
   const handleTest = async () => {

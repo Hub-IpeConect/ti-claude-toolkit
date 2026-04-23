@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1,
+    "nome": "IPECONECT",
+    "servidorPadrao": "sim",
+    "ativo": "sim",
+    "servidor": "10.0.1.4",
+    "portaLdap": "389",
+    "comentarios": "",
+    "filtroConexao": "(&(objectClass=user)(objectCategory=person)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))",
+    "baseDn": "dc=grupoprestacon,dc=local",
+    "usarVinculacao": "sim",
+    "rootDn": "grupo-prestacon\\Administrador",
+    "senha": "",
+    "campoLogin": "samaccountname",
+    "campoSincronizacao": "",
+    "grupoAD": ""
+  }
+]

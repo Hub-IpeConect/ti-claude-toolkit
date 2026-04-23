@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import {
   Building2, User, Loader2, CheckCircle2, AlertCircle,
   ArrowRight, ArrowLeft, Sparkles, Zap, Search, Edit3,
-  Share2, Settings, Mail, PenLine
+  Share2, Settings, Mail, PenLine, ChevronDown, ChevronUp,
+  FileText, TriangleAlert
 } from 'lucide-react'
 
 /**
@@ -78,6 +79,8 @@ export default function NewSquadWizard({ onCreated }) {
   const [researching, setResearching] = useState(false)
   const [researchLog, setResearchLog] = useState('')   // output ao vivo do Sherlock
   const [researchError, setResearchError] = useState('')
+  const [sherlockRaw, setSherlockRaw] = useState('')   // saida completa do Sherlock para exibicao no step 5
+  const [sherlockRawOpen, setSherlockRawOpen] = useState(false) // collapsible
   const logEndRef = useRef(null)
   const [status, setStatus] = useState('idle') // idle | configuring | done | error
   const [error, setError] = useState('')
@@ -102,10 +105,18 @@ export default function NewSquadWizard({ onCreated }) {
       case 1: return form.squadName.trim().length > 0
       case 2: return !!form.entityType
       case 3: return form.name.trim().length > 0
+      // Step 5: exige descricao+publico preenchidos; se so tiver raw, usuario precisa preencher primeiro
       case 5: return form.description.trim().length > 0 && form.audience.trim().length > 0
       default: return true
     }
   }
+
+  // Abre automaticamente o relatorio do Sherlock ao entrar no step 5 quando campos estao vazios
+  useEffect(() => {
+    if (step === 5 && sherlockRaw && !form.description && !form.audience) {
+      setSherlockRawOpen(true)
+    }
+  }, [step])
 
   const initAndResearch = async () => {
     setResearching(true)
@@ -129,77 +140,48 @@ export default function NewSquadWizard({ onCreated }) {
         setResearchLog(prev => prev + '✅ Estrutura criada.\n\n🔍 Sherlock iniciando investigação...\n\n')
       }
 
-      // 2. Research via SSE streaming
+      // 2. Research via POST sincrono (sem SSE - proxy do Vite nao suporta SSE com POST)
       const propositoLabel = form.proposito === 'custom'
         ? form.propositoCustom
         : PROPOSITO_OPTIONS.find(o => o.key === form.proposito)?.label || ''
 
-      await new Promise((resolve, reject) => {
-        // SSE via fetch + ReadableStream
-        fetch('/api/opensquad/research-profile-stream', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectName: form.squadName,
-            entityType: form.entityType,
-            name: form.name,
-            source: form.website,
-            proposito: propositoLabel,
-          }),
-        }).then(async (response) => {
-          if (!response.ok) {
-            const err = await response.json().catch(() => ({}))
-            return reject(new Error(err.error || 'Falha ao iniciar pesquisa'))
-          }
-          const reader = response.body.getReader()
-          const decoder = new TextDecoder()
-          let buffer = ''
+      setResearchLog(prev => prev + '\u23f3 Aguardando resposta do Claude (pode levar 1-2 minutos)...\n')
 
-          const pump = async () => {
-            const { done, value } = await reader.read()
-            if (done) return resolve()
-
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split('\n')
-            buffer = lines.pop() // guarda linha incompleta
-
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue
-              const raw = line.slice(6).trim()
-              if (!raw) continue
-              let evt
-              try { evt = JSON.parse(raw) } catch { continue }
-
-              if (evt.type === 'chunk') {
-                setResearchLog(prev => prev + evt.text)
-              } else if (evt.type === 'done') {
-                const p = evt.profile || {}
-                // Mesmo sem JSON estruturado, avanca com o que tiver
-                // (raw vai pro campo "extra" para o usuario ter contexto)
-                update({
-                  segment: p.segment || '',
-                  description: p.description || '',
-                  audience: p.audience || '',
-                  tone: ['Profissional','Amigavel','Consultivo','Divertido','Inspirador','Tecnico','Educativo'].includes(p.tone) ? p.tone : 'Profissional',
-                  objectives: p.objectives || '',
-                  differentials: p.differentials || '',
-                  extra: p.extra || (evt.raw ? `[Dados brutos do Sherlock — edite conforme necessario]\n${evt.raw}` : ''),
-                })
-                const temDados = !!(p.description || p.audience || p.segment)
-                setResearchLog(prev => prev + (temDados
-                  ? '\n\n✅ Pesquisa concluída!'
-                  : '\n\n⚠️ Dados parciais — revise e complete na proxima etapa.'))
-                setTimeout(() => setStep(5), 800)
-                return resolve()
-              } else if (evt.type === 'error') {
-                return reject(new Error(evt.message))
-              }
-            }
-            return pump()
-          }
-          return pump()
-        }).catch(reject)
+      const researchRes = await fetch('/api/opensquad/research-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectName: form.squadName,
+          entityType: form.entityType,
+          name: form.name,
+          source: form.website,
+          proposito: propositoLabel,
+        }),
       })
+
+      if (!researchRes.ok) {
+        const errData = await researchRes.json().catch(() => ({}))
+        throw new Error(errData.error || 'Falha na pesquisa')
+      }
+
+      const researchData = await researchRes.json()
+      const p = researchData.profile || {}
+      if (researchData.raw) setSherlockRaw(researchData.raw)
+      const TONS = ['Profissional','Amigavel','Consultivo','Divertido','Inspirador','Tecnico','Educativo']
+      update({
+        segment: p.segment || '',
+        description: p.description || '',
+        audience: p.audience || '',
+        tone: TONS.includes(p.tone) ? p.tone : 'Profissional',
+        objectives: p.objectives || '',
+        differentials: p.differentials || '',
+        extra: p.extra || '',
+      })
+      const temDados = !!(p.description || p.audience || p.segment)
+      setResearchLog(prev => prev + (temDados
+        ? '\n\n\u2705 Pesquisa conclu\u00edda! Revise os dados na proxima etapa.'
+        : '\n\n\u26a0\ufe0f Nenhum dado estruturado retornado. Preencha manualmente.'))
+      setTimeout(() => setStep(5), 800)
 
     } catch (err) {
       setResearchError(err.message)
@@ -285,6 +267,8 @@ export default function NewSquadWizard({ onCreated }) {
                 tone: 'Profissional', objectives: '', differentials: '', extra: '',
               })
               setStatus('idle'); setSquadCreated(false); setResult(null)
+              setSherlockRaw(''); setSherlockRawOpen(false)
+              setResearchLog(''); setResearchError('')
             }}
             className="border border-slate-300 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-white"
           >
@@ -532,44 +516,115 @@ export default function NewSquadWizard({ onCreated }) {
         )}
 
         {/* STEP 5 — Revisar dados do Sherlock */}
-        {step === 5 && (
-          <div className="space-y-3">
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <span>Dados encontrados pelo Sherlock. Revise e ajuste o que quiser.</span>
-            </div>
-            {[
-              { key: 'segment', label: 'Segmento / nicho', type: 'input' },
-              { key: 'description', label: 'Descricao *', type: 'textarea', rows: 3 },
-              { key: 'audience', label: 'Publico-alvo *', type: 'textarea', rows: 3 },
-              { key: 'objectives', label: 'Objetivos', type: 'input' },
-              { key: 'differentials', label: 'Diferenciais', type: 'textarea', rows: 2 },
-              { key: 'extra', label: 'Extra', type: 'textarea', rows: 2 },
-            ].map(f => (
-              <label key={f.key} className="block">
-                <span className="text-xs font-semibold text-slate-700">{f.label}</span>
-                {f.type === 'input' ? (
-                  <input type="text" value={form[f.key]}
-                    onChange={(e) => update({ [f.key]: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-sm" />
-                ) : (
-                  <textarea rows={f.rows} value={form[f.key]}
-                    onChange={(e) => update({ [f.key]: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-400 text-sm" />
-                )}
+        {step === 5 && (() => {
+          // temCampos so e true quando os dois campos OBRIGATORIOS estao preenchidos pelo Sherlock
+          const temCampos = !!(form.description?.trim() && form.audience?.trim())
+          const temRaw    = !!sherlockRaw
+
+          return (
+            <div className="space-y-3">
+
+              {/* Banner de status */}
+              {temCampos ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-xs text-emerald-800 flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-500" />
+                  <span>Sherlock preencheu os campos abaixo. Revise e ajuste o que quiser antes de continuar.</span>
+                </div>
+              ) : temRaw ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
+                  <TriangleAlert className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
+                  <span>
+                    O Sherlock encontrou dados mas nao conseguiu estrutura-los automaticamente.
+                    Consulte o relatorio abaixo e preencha os campos manualmente.
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600 flex items-start gap-2">
+                  <Edit3 className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>Preencha os campos abaixo com as informacoes do perfil.</span>
+                </div>
+              )}
+
+              {/* Relatorio completo do Sherlock — sempre visivel quando existe */}
+              {temRaw && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setSherlockRawOpen(o => !o)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+                  >
+                    <span className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                      <FileText className="w-3.5 h-3.5 text-slate-500" />
+                      Relatorio completo do Sherlock
+                      {!temCampos && (
+                        <span className="bg-amber-100 text-amber-700 text-[10px] font-medium px-1.5 py-0.5 rounded-full">
+                          consulte para preencher
+                        </span>
+                      )}
+                    </span>
+                    {sherlockRawOpen
+                      ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
+                      : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                    }
+                  </button>
+                  {sherlockRawOpen && (
+                    <div className="bg-slate-900 p-4 max-h-64 overflow-y-auto">
+                      <pre className="text-[11px] text-slate-300 whitespace-pre-wrap font-mono leading-relaxed">
+                        {sherlockRaw}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Campos editaveis */}
+              {[
+                { key: 'segment',      label: 'Segmento / nicho',  type: 'input'    },
+                { key: 'description',  label: 'Descricao *',       type: 'textarea', rows: 3 },
+                { key: 'audience',     label: 'Publico-alvo *',    type: 'textarea', rows: 3 },
+                { key: 'objectives',   label: 'Objetivos',         type: 'input'    },
+                { key: 'differentials',label: 'Diferenciais',      type: 'textarea', rows: 2 },
+                { key: 'extra',        label: 'Informacoes extras', type: 'textarea', rows: 2 },
+              ].map(f => (
+                <label key={f.key} className="block">
+                  <span className="text-xs font-semibold text-slate-700">{f.label}</span>
+                  {f.type === 'input' ? (
+                    <input
+                      type="text"
+                      value={form[f.key]}
+                      onChange={(e) => update({ [f.key]: e.target.value })}
+                      placeholder={!temCampos && temRaw ? 'Preencha com base no relatorio acima' : ''}
+                      className={`mt-1 w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-rose-400
+                        ${!form[f.key] && !temCampos && temRaw ? 'border-amber-300 bg-amber-50/30' : 'border-slate-300'}`}
+                    />
+                  ) : (
+                    <textarea
+                      rows={f.rows}
+                      value={form[f.key]}
+                      onChange={(e) => update({ [f.key]: e.target.value })}
+                      placeholder={!temCampos && temRaw ? 'Preencha com base no relatorio acima' : ''}
+                      className={`mt-1 w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-rose-400
+                        ${!form[f.key] && !temCampos && temRaw ? 'border-amber-300 bg-amber-50/30' : 'border-slate-300'}`}
+                    />
+                  )}
+                </label>
+              ))}
+
+              <label className="block">
+                <span className="text-xs font-semibold text-slate-700">Tom de voz</span>
+                <select
+                  value={form.tone}
+                  onChange={(e) => update({ tone: e.target.value })}
+                  className="mt-1 w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white text-sm"
+                >
+                  {['Profissional','Amigavel','Consultivo','Divertido','Inspirador','Tecnico','Educativo'].map(t =>
+                    <option key={t}>{t}</option>
+                  )}
+                </select>
               </label>
-            ))}
-            <label className="block">
-              <span className="text-xs font-semibold text-slate-700">Tom de voz</span>
-              <select value={form.tone} onChange={(e) => update({ tone: e.target.value })}
-                className="mt-1 w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-400 bg-white text-sm">
-                {['Profissional','Amigavel','Consultivo','Divertido','Inspirador','Tecnico','Educativo'].map(t =>
-                  <option key={t}>{t}</option>
-                )}
-              </select>
-            </label>
-          </div>
-        )}
+            </div>
+          )
+        })()}
 
         {/* STEP 6 — Confirm */}
         {step === 6 && (

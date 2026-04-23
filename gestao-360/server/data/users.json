@@ -1,0 +1,9 @@
+[
+  {
+    "username": "admin",
+    "passwordHash": "62dd048cc48871f298ab059aa92525ea:b0e536fc3bfaa11cd2e28ee49ee67eae2337ad32453aca69f69d9cf4efb1f57fab42767cb01cc0fcbc93b59cd0c24a32ba60ac51cd976bff9dcd129110f1ccd7",
+    "displayName": "Administrador",
+    "email": "admin@ipeconect.com.br",
+    "role": "admin"
+  }
+]
