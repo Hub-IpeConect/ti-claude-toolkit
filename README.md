@@ -22,7 +22,7 @@ ti-claude-toolkit/
 │   ├── web-artifacts-builder/  Artefatos HTML/React complexos
 │   └── xlsx/               Criação/edição de planilhas Excel
 │
-├── plugins/             → Plugins completos (skills + conectores MCP)
+├── plugins/             → Plugins do Cowork/Windows (marketplace knowledge-work-plugins)
 │   ├── cowork-plugin-management/  Gerenciamento de plugins
 │   ├── data/                      Análise de dados, SQL, dashboards
 │   ├── design/                    UX/UI, acessibilidade, pesquisa
@@ -35,9 +35,22 @@ ti-claude-toolkit/
 │   ├── superpowers/               TDD, debugging, planejamento, code review
 │   └── manifest.json              Manifesto dos plugins instalados
 │
+├── claude-code/         → Plugins do Claude Code/Pi (marketplace claude-plugins-official)
+│   ├── plugins/             Backup dos 11 plugins usados no dev do gestão-360 e afins
+│   ├── plugins.json         Manifesto (nome, versão, descrição)
+│   └── README.md            Lista e como instalar via /plugin
+│
+├── gestao-360/          → App do gestão-360 (React + Node.js)
+│
 └── scripts/
-    └── deploy.ps1       → Script para criar repo e fazer push
+    ├── deploy.ps1       → Script para criar repo e fazer push (Windows)
+    └── deploy.sh        → Script equivalente para Linux/Pi
 ```
+
+> **Cowork/Windows vs Claude Code/Pi:** são dois ambientes distintos com marketplaces
+> diferentes. `skills/` + `plugins/` vêm do Cowork; `claude-code/` vem do Claude Code no Pi
+> (onde o gestão-360 foi desenvolvido). Skills/agents/commands específicos do bot de cripto
+> não entram neste toolkit.
 
 ## Como Usar
 
@@ -45,13 +58,17 @@ ti-claude-toolkit/
 
 Copie a pasta `skills/` para `~/.claude/skills/` (ou a pasta de skills do seu Cowork).
 
-### Opção 2: Instalar Plugins
+### Opção 2: Instalar Plugins do Cowork
 
 Os plugins do marketplace (data, design, engineering, etc.) podem ser instalados diretamente pelo Cowork em **Settings > Plugins**. Este repo serve como backup e referência.
 
-O plugin **superpowers** é custom e pode ser importado manualmente.
+### Opção 3: Instalar Plugins do Claude Code (Pi)
 
-### Opção 3: Referência
+Os 11 plugins em `claude-code/plugins/` são do marketplace oficial `claude-plugins-official` e
+instaláveis via `/plugin install <nome>@claude-plugins-official`. Veja
+[`claude-code/README.md`](claude-code/README.md) para a lista completa e comandos.
+
+### Opção 4: Referência
 
 Use este repo como documentação das capacidades disponíveis no Claude para a equipe.
 

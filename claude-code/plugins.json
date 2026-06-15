@@ -1,0 +1,61 @@
+{
+  "marketplace": "claude-plugins-official",
+  "environment": "Claude Code (Raspberry Pi)",
+  "plugins": [
+    {
+      "name": "claude-md-management",
+      "version": "1.0.0",
+      "description": "Tools to maintain and improve CLAUDE.md files - audit quality, capture session learnings, and keep project memory current."
+    },
+    {
+      "name": "code-review",
+      "version": "latest",
+      "description": "Automated code review for pull requests using multiple specialized agents with confidence-based scoring"
+    },
+    {
+      "name": "context7",
+      "version": "latest",
+      "description": "Upstash Context7 MCP server for up-to-date documentation lookup. Pull version-specific documentation and code examples directly from source repositories into your LLM context."
+    },
+    {
+      "name": "feature-dev",
+      "version": "latest",
+      "description": "Comprehensive feature development workflow with specialized agents for codebase exploration, architecture design, and quality review"
+    },
+    {
+      "name": "frontend-design",
+      "version": "latest",
+      "description": "Frontend design skill for UI/UX implementation"
+    },
+    {
+      "name": "github",
+      "version": "latest",
+      "description": "Official GitHub MCP server for repository management. Create issues, manage pull requests, review code, search repositories, and interact with GitHub's full API directly from Claude Code."
+    },
+    {
+      "name": "pr-review-toolkit",
+      "version": "latest",
+      "description": "Comprehensive PR review agents specializing in comments, tests, error handling, type design, code quality, and code simplification"
+    },
+    {
+      "name": "ralph-loop",
+      "version": "1.0.0",
+      "description": "Continuous self-referential AI loops for interactive iterative development, implementing the Ralph Wiggum technique. Run Claude in a while-true loop with the same prompt until task completion."
+    },
+    {
+      "name": "security-guidance",
+      "version": "2.0.6",
+      "description": "Security review for Claude-generated code. Pattern-based warnings on edits, LLM-powered diff review on Stop, and an agentic commit reviewer that catches injection, XSS, SSRF, hardcoded secrets, and 25+ other vulnerability classes."
+    },
+    {
+      "name": "skill-creator",
+      "version": "latest",
+      "description": "Create new skills, improve existing skills, and measure skill performance. Use when users want to create a skill from scratch, update or optimize an existing skill, run evals to test a skill, or benchmark skill performance with variance analysis."
+    },
+    {
+      "name": "superpowers",
+      "version": "5.1.0",
+      "description": "Core skills library for Claude Code: TDD, debugging, collaboration patterns, and proven techniques"
+    }
+  ]
+}
