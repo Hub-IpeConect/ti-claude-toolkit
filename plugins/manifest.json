@@ -1,94 +1,168 @@
 {
-  "lastUpdated": 1775764329241,
+  "lastUpdated": 1781568426573,
+  "generatedBy": "cowork-sync (Gabriel)",
+  "totalPlugins": 23,
   "plugins": [
     {
-      "id": "plugin_01CLfZxYwZ9dnR16boR6gctP",
+      "name": "adobe-for-creativity",
+      "version": "1.0.2",
+      "skills": 7,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Brings together Adobe Creative Cloud tools for images, vectors, design, and video. Edit multiple assets at once, adapt for different platforms, and complete multi-step creative workflows for polished results."
+    },
+    {
+      "name": "ai-firstify",
+      "version": "1.1.0",
+      "skills": 1,
+      "marketplace": "knowledge-work-plugins",
+      "description": "AI-first project auditor and re-engineer based on the 9 design principles and 7 design patterns from the TechWolf AI-First Bootcamp"
+    },
+    {
+      "name": "base44",
+      "version": "1.0.0-beta.1",
+      "skills": 3,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Build and deploy Base44 full-stack apps with CLI project management and JavaScript/TypeScript SDK development skills"
+    },
+    {
+      "name": "box",
+      "version": "1.0.0",
+      "skills": 5,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Box Plugin for Claude Code to help with Box Platform integrations including content workflows, shared links, webhooks, metadata, and Box AI retrieval."
+    },
+    {
+      "name": "brightdata-plugin",
+      "version": "1.8.0",
+      "skills": 21,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Web scraping, Google search, structured data extraction, and MCP server integration powered by Bright Data. Includes 21 skills: scrape any webpage as markdown (with bot detection/CAPTCHA bypass), search Google with structured JSON result..."
+    },
+    {
       "name": "cowork-plugin-management",
-      "updatedAt": "2026-04-03T20:13:24.806945Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
+      "version": "0.2.2",
+      "skills": 2,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Create, customize, and manage plugins tailored to your organization's tools and workflows. Configure MCP servers, adjust plugin behavior, and adapt templates to match how your team works."
     },
     {
-      "id": "plugin_01LPDRK9BReKB1farhv5AgpT",
-      "name": "engineering",
-      "updatedAt": "2026-04-03T20:13:29.773178Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
-    },
-    {
-      "id": "plugin_01JsCwycJtPvansatQZ7K9hb",
-      "name": "operations",
-      "updatedAt": "2026-04-03T20:13:31.797920Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
-    },
-    {
-      "id": "plugin_015L1rJREDcgPipPbZMxTbPX",
-      "name": "design",
-      "updatedAt": "2026-04-03T20:13:32.007604Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
-    },
-    {
-      "id": "plugin_01BEjqpDKyAmMWkKL2CktGRs",
-      "name": "pdf-viewer",
-      "updatedAt": "2026-04-03T20:13:32.334002Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
-    },
-    {
-      "id": "plugin_014mL7omyCrAU99r9L3aX82H",
-      "name": "finance",
-      "updatedAt": "2026-04-03T20:13:24.807186Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
-    },
-    {
-      "id": "plugin_01XZjmhytzddNHz7xaJV7oRw",
       "name": "data",
-      "updatedAt": "2026-04-03T20:13:24.334321Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
+      "version": "1.1.0",
+      "skills": 10,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Write SQL, explore datasets, and generate insights faster. Build visualizations and dashboards, and turn raw data into clear stories for stakeholders."
     },
     {
-      "id": "plugin_01Xcwm81G3Cr2ENKqGa2qKhu",
+      "name": "design",
+      "version": "1.2.0",
+      "skills": 7,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Accelerate design workflows — critique, design system management, UX writing, accessibility audits, research synthesis, and dev handoff. From exploration to pixel-perfect specs."
+    },
+    {
+      "name": "desktop-commander",
+      "version": "",
+      "skills": 1,
+      "marketplace": "knowledge-work-plugins",
+      "description": "MCP server for terminal commands, process management, and file operations across text, code, PDF, DOCX, Excel, images, and structured data"
+    },
+    {
+      "name": "engineering",
+      "version": "1.2.0",
+      "skills": 10,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Streamline engineering workflows — standups, code review, architecture decisions, incident response, and technical documentation. Works with your existing tools or standalone."
+    },
+    {
+      "name": "enterprise-search",
+      "version": "1.3.0",
+      "skills": 5,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Search across all of your company's tools in one place. Find anything across email, chat, documents, and wikis without switching between apps."
+    },
+    {
+      "name": "fastly-agent-toolkit",
+      "version": "0.1.0",
+      "skills": 7,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Fastly development tools and platform skills"
+    },
+    {
+      "name": "figma",
+      "version": "2.2.50",
+      "skills": 9,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Plugin that includes the Figma MCP server and Skills for common workflows"
+    },
+    {
+      "name": "finance",
+      "version": "1.3.0",
+      "skills": 8,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Streamline finance and accounting workflows, from journal entries and reconciliation to financial statements and variance analysis. Speed up audit prep, month-end close, and keeping your books clean."
+    },
+    {
+      "name": "operations",
+      "version": "1.3.0",
+      "skills": 9,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Optimize business operations — vendor management, process documentation, change management, capacity planning, and compliance tracking. Keep your organization running efficiently."
+    },
+    {
+      "name": "pdf-viewer",
+      "version": "0.2.0",
+      "skills": 1,
+      "marketplace": "knowledge-work-plugins",
+      "description": "View, annotate, and sign PDFs in a live interactive viewer. Mark up contracts, fill forms with visual feedback, stamp approvals, and place signatures — then download the annotated copy."
+    },
+    {
       "name": "product-management",
-      "updatedAt": "2026-04-03T20:13:24.739874Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
+      "version": "1.2.0",
+      "skills": 8,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Write feature specs, plan roadmaps, and synthesize user research faster. Keep stakeholders updated and stay ahead of the competitive landscape."
     },
     {
-      "id": "plugin_01VFQVeXfFsseqW7ZaaAizaF",
+      "name": "product-tracking-skills",
+      "version": "1.1.0",
+      "skills": 7,
+      "marketplace": "knowledge-work-plugins",
+      "description": "AI agent skills that make SaaS products data-ready for product analytics — from codebase scan to tracking plan to working instrumentation code."
+    },
+    {
       "name": "productivity",
-      "updatedAt": "2026-04-03T20:13:24.986411Z",
-      "marketplaceId": "marketplace_01QRn9XAjzzeAokB5nPWVMxP",
-      "marketplaceName": "knowledge-work-plugins",
-      "installedBy": "user",
-      "installationPreference": "available"
+      "version": "1.3.0",
+      "skills": 5,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Manage tasks, plan your day, and build up memory of important context about your work. Syncs with your calendar, email, and chat to keep everything organized and on track."
     },
     {
-      "id": "plugin_01MraRqkJUbL1HwKXpQJ6c8W",
+      "name": "sales",
+      "version": "1.3.0",
+      "skills": 9,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Prospect, craft outreach, and build deal strategy faster. Prep for calls, manage your pipeline, and write personalized messaging that moves deals forward."
+    },
+    {
+      "name": "sanity",
+      "version": "1.0.0",
+      "skills": 7,
+      "marketplace": "knowledge-work-plugins",
+      "description": "Sanity plugin for Claude Code with MCP server, agent skills, agent rules, and slash commands."
+    },
+    {
+      "name": "sp-global",
+      "version": "1.0.0",
+      "skills": 4,
+      "marketplace": "knowledge-work-plugins",
+      "description": "S&P Global - Financial data and analytics skills including company tearsheets, earnings previews, and transaction summaries"
+    },
+    {
       "name": "superpowers",
-      "updatedAt": "2026-04-09T18:52:36.942Z",
-      "marketplaceId": "marketplace_01ND6FuXWkJPVwtXDfJU2kde",
-      "marketplaceName": "My Uploads",
-      "installedBy": "user"
+      "version": "5.0.7",
+      "skills": 14,
+      "marketplace": "My Uploads",
+      "description": "Core skills library for Claude Code: TDD, debugging, collaboration patterns, and proven techniques"
     }
   ]
 }
